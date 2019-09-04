@@ -15,6 +15,8 @@ def get_fullpath(path):
 def fix_activate(targetenv_path):
     activate_path = targetenv_path+'\\Scripts\\activate'
     modified_activate_path = targetenv_path+'\\Scripts\\activate.tmp'
+    if not os.path.exists(activate_path):
+        return
     activate_file = open(activate_path, 'r')
     modified_activate_file = open(modified_activate_path, 'w')
     linux_targetenv_path = targetenv_path.replace('\\', '/')
@@ -36,6 +38,8 @@ def fix_activate_bat(targetenv_path):
     env_name = targetenv_path.split('\\')[-1]
     activate_bat_path = targetenv_path+'\\Scripts\\activate.bat'
     modifiedactivate_bat_path = targetenv_path+'\\Scripts\\activate.bat.tmp'
+    if not os.path.exists(activate_bat_path):
+        return
     activate_bat_file = open(activate_bat_path, 'r')
     modified_activate_bat_file = open(modifiedactivate_bat_path, 'w')
     for line in activate_bat_file:
@@ -54,6 +58,8 @@ def fix_activate_bat(targetenv_path):
 def fix_activate_xsh(targetenv_path):
     activate_xsh_path = targetenv_path+'\\Scripts\\activate.xsh'
     modified_activate_xsh_path = targetenv_path+'\\Scripts\\activate.xsh.tmp'
+    if not os.path.exists(activate_xsh_path):
+        return
     activate_xsh_file = open(activate_xsh_path, 'r')
     modified_activate_xsh_file = open(modified_activate_xsh_path, 'w')
     for line in activate_xsh_file:
@@ -67,22 +73,31 @@ def fix_activate_xsh(targetenv_path):
     print(activate_xsh_path+' fixed')
 
 
-def fix_exe_interpreter(targetenv_path):
+def fix_exe_interpreter(targetenv_path, modified_python_name):
     scriptexe_names = os.listdir(targetenv_path+'\\Scripts')
     for scriptexe_name in scriptexe_names:
-        if scriptexe_name.split('.')[-1] == 'exe' and scriptexe_name != 'python.exe' and scriptexe_name != 'pythonw.exe':
+        if scriptexe_name.split('.')[-1] == 'exe' and scriptexe_name != 'python.exe' and scriptexe_name != 'pythonw.exe' and scriptexe_name != modified_python_name:
             scriptexe_path = targetenv_path+'\\Scripts\\'+scriptexe_name
             scriptexe_file = open(scriptexe_path, 'rb')
             rawcontent = scriptexe_file.read()
-            offset_python = rawcontent.find(b'python.exe\x0a\x0d\x0aPK')
+            if modified_python_name:
+                offset_python = offset_python = rawcontent.find(
+                    bytes(modified_python_name, 'ascii')+b'\x0a\x0d\x0aPK')
+            else:
+                offset_python = rawcontent.find(b'python.exe\x0a\x0d\x0aPK')
             if offset_python == -1:
                 continue
-            end_offset = offset_python+10
+            if modified_python_name:
+                end_offset = offset_python+len(modified_python_name)
+                replace_python_path = ('#!'+targetenv_path +
+                                       '\\Scripts\\'+modified_python_name).encode('ascii')
+            else:
+                end_offset = offset_python+10
+                replace_python_path = ('#!'+targetenv_path +
+                                       '\\Scripts\\python.exe').encode('ascii')
             start_offset = offset_python
             while rawcontent[start_offset:start_offset+2] != b'#!':
                 start_offset -= 1
-            replace_python_path = ('#!'+targetenv_path +
-                                   '\\Scripts\\python.exe').encode()
             newcontent = rawcontent[:start_offset] + \
                 replace_python_path+rawcontent[end_offset:]
             scriptexe_file.close()
@@ -95,12 +110,17 @@ def fix_exe_interpreter(targetenv_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 1:
-        print('Usage: python '+sys.argv[0]+' <VENV_PATH>')
+    if len(sys.argv) != 2 and len(sys.argv) != 3:
+        print('Usage: python '+sys.argv[0] +
+              ' <VENV_PATH> (modified_python_name)')
         exit()
     targetenv_path = sys.argv[1]
     targetenv_path = get_fullpath(targetenv_path)
+    if len(sys.argv) == 3:
+        modified_python_name = sys.argv[2]
+    else:
+        modified_python_name = None
     fix_activate(targetenv_path)
     fix_activate_bat(targetenv_path)
     fix_activate_xsh(targetenv_path)
-    fix_exe_interpreter(targetenv_path)
+    fix_exe_interpreter(targetenv_path, modified_python_name)

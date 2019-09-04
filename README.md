@@ -4,7 +4,7 @@
 
 ## Usage: 
 
-python venvrelocate.py <VENV_PATH>
+python venvrelocate.py <VENV_PATH> (modified_python_name)
 
 ## Example:
 
@@ -13,3 +13,7 @@ After you move or rename virtualenv D:\venvs\venv1 to D:\venvs\venv2, the activa
 Then you can execute "python venvrelocate.py D:\venvs\venv2".
 
 And then venv2 will work properly, you can activate it and use pip as usual.
+
+## Notice:
+
+If there is a modified python name in the venv\scripts such as "python3.exe", "python2.exe", or "python36.exe"... , you should also send this name to arguments. (e.g. python venvrelocate.py venv1 python36.exe).
