@@ -1,6 +1,6 @@
-# virtualenv-relocate
+# venv-relocate
 
-**Only for Windows**
+**Only for Windows and virtual environments created by "python -m venv"**
 
 ## Usage: 
 

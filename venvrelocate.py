@@ -23,9 +23,8 @@ def fix_activate(targetenv_path):
     linux_targetenv_path = '/'+linux_targetenv_path
     linux_targetenv_path = linux_targetenv_path.replace(':', '')
     for line in activate_file:
-        if 'VIRTUAL_ENV="$(if [ "$OSTYPE" "==" "cygwin" ]; then cygpath -u' in line:
-            line = 'VIRTUAL_ENV="$(if [ "$OSTYPE" "==" "cygwin" ]; then cygpath -u \'' + \
-                targetenv_path+'\'; else echo \''+linux_targetenv_path+'\'; fi;)"\n'
+        if 'VIRTUAL_ENV=\"' in line:
+            line = 'VIRTUAL_ENV=\"'+targetenv_path+'\"\n'
         modified_activate_file.write(line)
     activate_file.close()
     modified_activate_file.close()
@@ -36,41 +35,45 @@ def fix_activate(targetenv_path):
 
 def fix_activate_bat(targetenv_path):
     env_name = targetenv_path.split('\\')[-1]
-    activate_bat_path = targetenv_path+'\\Scripts\\activate.bat'
-    modifiedactivate_bat_path = targetenv_path+'\\Scripts\\activate.bat.tmp'
-    if not os.path.exists(activate_bat_path):
+    activate_path = targetenv_path+'\\Scripts\\activate.bat'
+    modified_activate_path = targetenv_path+'\\Scripts\\activate.bat.tmp'
+    if not os.path.exists(activate_path):
         return
-    activate_bat_file = open(activate_bat_path, 'r')
-    modified_activate_bat_file = open(modifiedactivate_bat_path, 'w')
-    for line in activate_bat_file:
+    activate_file = open(activate_path, 'r')
+    modified_activate_file = open(modified_activate_path, 'w')
+    for line in activate_file:
         if "set \"VIRTUAL_ENV=" in line:
             line = "set \"VIRTUAL_ENV="+targetenv_path+'\"\n'
         if "set \"PROMPT=(" in line:
             line = "set \"PROMPT=("+env_name+") %PROMPT%\"\n"
-        modified_activate_bat_file.write(line)
-    activate_bat_file.close()
-    modified_activate_bat_file.close()
-    os.remove(activate_bat_path)
-    os.rename(modifiedactivate_bat_path, activate_bat_path)
-    print(activate_bat_path+' fixed')
+        modified_activate_file.write(line)
+    activate_file.close()
+    modified_activate_file.close()
+    os.remove(activate_path)
+    os.rename(modified_activate_path, activate_path)
+    print(activate_path+' fixed')
 
 
-def fix_activate_xsh(targetenv_path):
-    activate_xsh_path = targetenv_path+'\\Scripts\\activate.xsh'
-    modified_activate_xsh_path = targetenv_path+'\\Scripts\\activate.xsh.tmp'
-    if not os.path.exists(activate_xsh_path):
+def fix_activate_ps1(targetenv_path):
+    env_name = targetenv_path.split('\\')[-1]
+    activate_path = targetenv_path+'\\Scripts\\activate.ps1'
+    modified_activate_path = targetenv_path+'\\Scripts\\activate.ps1.tmp'
+    if not os.path.exists(activate_path):
         return
-    activate_xsh_file = open(activate_xsh_path, 'r')
-    modified_activate_xsh_file = open(modified_activate_xsh_path, 'w')
-    for line in activate_xsh_file:
-        if '$VIRTUAL_ENV = r"' in line:
-            line = '$VIRTUAL_ENV = r"'+targetenv_path+'"\n'
-        modified_activate_xsh_file.write(line)
-    activate_xsh_file.close()
-    modified_activate_xsh_file.close()
-    os.remove(activate_xsh_path)
-    os.rename(modified_activate_xsh_path, activate_xsh_path)
-    print(activate_xsh_path+' fixed')
+    activate_file = open(activate_path, 'r')
+    modified_activate_file = open(modified_activate_path, 'w')
+    for line in activate_file:
+        if "$env:VIRTUAL_ENV=\"" in line:
+            line = "$env:VIRTUAL_ENV=\""+targetenv_path+'\"\n'
+        if "Write-Host -NoNewline -ForegroundColor Green \'(" in line:
+            line = "Write-Host -NoNewline -ForegroundColor Green \'(" + \
+                env_name+") \'\n"
+        modified_activate_file.write(line)
+    activate_file.close()
+    modified_activate_file.close()
+    os.remove(activate_path)
+    os.rename(modified_activate_path, activate_path)
+    print(activate_path+' fixed')
 
 
 def fix_exe_interpreter(targetenv_path, modified_python_name):
@@ -122,5 +125,5 @@ if __name__ == "__main__":
         modified_python_name = None
     fix_activate(targetenv_path)
     fix_activate_bat(targetenv_path)
-    fix_activate_xsh(targetenv_path)
+    fix_activate_ps1(targetenv_path)
     fix_exe_interpreter(targetenv_path, modified_python_name)
