@@ -193,7 +193,7 @@ def create_ps1_replace_line(paths: dict) -> list:
     return replace_lines
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     python_path = parse_args(sys.argv[1:])
     paths = parse_path(python_path)
     fix_activate_script(paths, 'activate', create_bash_replace_line(paths))
