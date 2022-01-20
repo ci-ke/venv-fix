@@ -7,7 +7,7 @@ def parse_args(args_list: list) -> str:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '<new_venv_python_path>',
-        help='It can be absolute path or relative path of the python interpreter in new venv folder.',
+        help='It can be absolute or relative path of the python interpreter in new venv folder.',
     )
     args_space = parser.parse_args(args_list)
     python_path = vars(args_space)['<new_venv_python_path>']
@@ -80,6 +80,38 @@ def fix_activate_script(paths: dict, script_name: str, replace_line: list) -> No
     print(script_path + ' fixed')
 
 
+def fix_exe_files(paths: list) -> None:
+    file_names = os.listdir(paths['python_folder_path'])
+    for file_name in file_names:
+        if file_name.split('.')[-1] == 'exe':
+            file_path = paths['python_folder_path'] + '\\' + file_name
+            with open(file_path, 'rb') as exe_file:
+                raw_content = exe_file.read()
+                offset_python = raw_content.find(
+                    b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
+                )
+                if offset_python == -1:
+                    continue
+                start_offset = offset_python
+                while raw_content[start_offset : start_offset + 2] != b'#!':
+                    start_offset -= 1
+                end_offset = offset_python + 4
+
+                replace_python_path = (
+                    '#!' + paths['python_folder_path'] + '\\' + paths['python_name']
+                ).encode('ascii')
+                new_content = (
+                    raw_content[:start_offset]
+                    + replace_python_path
+                    + raw_content[end_offset:]
+                )
+            with open(file_path + '.tmp', 'wb') as modified_exe_file:
+                modified_exe_file.write(new_content)
+            os.remove(file_path)
+            os.rename(file_path + '.tmp', file_path)
+            print(file_path + ' fixed')
+
+
 def create_bash_replace_line(paths: dict) -> list:
     replace_lines = []  # [([old1,old2,...],new),...]
     # 3.6 3.8
@@ -90,7 +122,7 @@ def create_bash_replace_line(paths: dict) -> list:
     replace_lines.append(
         (
             [') " != x ] ; then'],
-            '    if [ \"x(' + paths['venv_name'] + ') \" != x ] ; then\n',
+            '    if [ "x(' + paths['venv_name'] + ') " != x ] ; then\n',
         )
     )
     # 3.6 3.8 3.9
@@ -159,38 +191,6 @@ def create_ps1_replace_line(paths: dict) -> list:
         )
     )
     return replace_lines
-
-
-def fix_exe_files(paths: list) -> None:
-    file_names = os.listdir(paths['python_folder_path'])
-    for file_name in file_names:
-        if file_name.split('.')[-1] == 'exe':
-            file_path = paths['python_folder_path'] + '\\' + file_name
-            with open(file_path, 'rb') as exe_file:
-                raw_content = exe_file.read()
-                offset_python = raw_content.find(
-                    b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
-                )
-                if offset_python == -1:
-                    continue
-                start_offset = offset_python
-                while raw_content[start_offset : start_offset + 2] != b'#!':
-                    start_offset -= 1
-                end_offset = offset_python + 4
-
-                replace_python_path = (
-                    '#!' + paths['python_folder_path'] + '\\' + paths['python_name']
-                ).encode('ascii')
-                new_content = (
-                    raw_content[:start_offset]
-                    + replace_python_path
-                    + raw_content[end_offset:]
-                )
-            with open(file_path + '.tmp', 'wb') as modified_exe_file:
-                modified_exe_file.write(new_content)
-            os.remove(file_path)
-            os.rename(file_path + '.tmp', file_path)
-            print(file_path + ' fixed')
 
 
 if __name__ == "__main__":
