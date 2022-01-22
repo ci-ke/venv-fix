@@ -105,9 +105,7 @@ def fix_exe_files(paths: list) -> None:
                     start_offset -= 1
                 end_offset = offset_python + 4
 
-                replace_python_path = (
-                    '#!' + paths['python_folder_path'] + '\\' + paths['python_name']
-                ).encode('ascii')
+                replace_python_path = ('#!' + paths['python_path']).encode('ascii')
                 new_content = (
                     raw_content[:start_offset]
                     + replace_python_path
@@ -129,15 +127,9 @@ def fix_python_scripts(paths: dict) -> None:
             with open(file_path, 'r') as script_file:
                 first_line = script_file.readline()
                 if first_line[:2] != '#!':
-                    return
+                    continue
                 remains = script_file.read()
-                new_first_line = (
-                    '#!'
-                    + paths['python_folder_path'].lower()
-                    + '\\'
-                    + paths['python_name'].lower()
-                    + '\n'
-                )
+                new_first_line = '#!' + paths['python_path'] + '\n'
             with open(modified_file_path, 'w') as modified_script_file:
                 modified_script_file.write(new_first_line + remains)
             os.remove(file_path)
