@@ -6,50 +6,57 @@ import argparse
 def parse_args(args_list: list) -> str:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '<new_venv_python_path>',
-        help='It can be absolute or relative path of the python interpreter in new venv folder.',
+        '<venv_python_path>',
+        help='absolute or relative path of the python interpreter in venv',
     )
     args_space = parser.parse_args(args_list)
-    python_path = vars(args_space)['<new_venv_python_path>']
+    input_path = vars(args_space)['<venv_python_path>']
+    python_path = os.path.abspath(input_path)
     return python_path
 
 
-def is_python_exe(python_path: str) -> bool:
-    with open(python_path, 'rb') as exe_file:
+def is_python_exe(paths: dict) -> bool:
+    if not os.path.isfile(paths['python_path']):
+        return False
+    if paths['python_name'][-4:] != '.exe' or paths['python_name'].find('python') == -1:
+        return False
+    with open(paths['python_path'], 'rb') as exe_file:
         raw_content = exe_file.read()
         offset_python = raw_content.find(
             b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
         )
-    if offset_python == -1:
-        return True
-    else:
-        return False
+        if offset_python != -1:
+            return False
+    return True
 
 
 def parse_path(python_path: str) -> dict:
-    if not (os.path.isfile(python_path) and is_python_exe(python_path)):
-        print('This is not a python interpreter name.')
-        exit()
+    try:
+        path_split = python_path.split('\\')
+        venv_path = '\\'.join(path_split[:-2])
+        python_folder_path = '\\'.join(path_split[:-1])
+        venv_name = path_split[-3]
+        python_name = path_split[-1]
+    except IndexError:
+        exit(print('bad input path'))
 
-    full_python_path = os.path.abspath(python_path)
-    path_split = full_python_path.split('\\')
-    venv_path = '\\'.join(path_split[:-2])
-    python_folder_path = '\\'.join(path_split[:-1])
-    venv_name = path_split[-3]
-    python_name = path_split[-1]
-
-    files_in_venv = os.listdir(venv_path)
-    files_in_venv = [s.lower() for s in files_in_venv]
-    if not 'pyvenv.cfg' in files_in_venv:
-        print('This path is not in a venv.')
-        exit()
-
-    return {
+    paths = {
+        'python_path': python_path,
         'venv_name': venv_name,
         'venv_path': venv_path,
         'python_name': python_name,
         'python_folder_path': python_folder_path,
     }
+
+    if not is_python_exe(paths):
+        exit(print('not a python interpreter'))
+
+    files_in_venv = os.listdir(venv_path)
+    files_in_venv = [s.lower() for s in files_in_venv]
+    if not 'pyvenv.cfg' in files_in_venv:
+        exit(print('not a venv'))
+
+    return paths
 
 
 def match_line(search_lines: list, line: str) -> bool:
@@ -61,7 +68,7 @@ def match_line(search_lines: list, line: str) -> bool:
 
 def fix_activate_script(paths: dict, script_name: str, replace_line: list) -> None:
     script_path = paths['python_folder_path'] + '\\' + script_name
-    modified_script_path = paths['python_folder_path'] + '\\' + script_name + '.tmp'
+    modified_script_path = script_path + '.tmp'
     if not os.path.exists(script_path):
         return
 
@@ -85,6 +92,7 @@ def fix_exe_files(paths: list) -> None:
     for file_name in file_names:
         if file_name.split('.')[-1] == 'exe':
             file_path = paths['python_folder_path'] + '\\' + file_name
+            modified_file_path = file_path + '.tmp'
             with open(file_path, 'rb') as exe_file:
                 raw_content = exe_file.read()
                 offset_python = raw_content.find(
@@ -105,10 +113,35 @@ def fix_exe_files(paths: list) -> None:
                     + replace_python_path
                     + raw_content[end_offset:]
                 )
-            with open(file_path + '.tmp', 'wb') as modified_exe_file:
+            with open(modified_file_path, 'wb') as modified_exe_file:
                 modified_exe_file.write(new_content)
             os.remove(file_path)
-            os.rename(file_path + '.tmp', file_path)
+            os.rename(modified_file_path, file_path)
+            print(file_path + ' fixed')
+
+
+def fix_python_scripts(paths: dict) -> None:
+    file_names = os.listdir(paths['python_folder_path'])
+    for file_name in file_names:
+        if file_name.split('.')[-1] == 'py':
+            file_path = paths['python_folder_path'] + '\\' + file_name
+            modified_file_path = file_path + '.tmp'
+            with open(file_path, 'r') as script_file:
+                first_line = script_file.readline()
+                if first_line[:2] != '#!':
+                    return
+                remains = script_file.read()
+                new_first_line = (
+                    '#!'
+                    + paths['python_folder_path'].lower()
+                    + '\\'
+                    + paths['python_name'].lower()
+                    + '\n'
+                )
+            with open(modified_file_path, 'w') as modified_script_file:
+                modified_script_file.write(new_first_line + remains)
+            os.remove(file_path)
+            os.rename(modified_file_path, file_path)
             print(file_path + ' fixed')
 
 
@@ -200,7 +233,8 @@ def main():
     fix_activate_script(paths, 'activate.bat', create_bat_replace_line(paths))
     fix_activate_script(paths, 'Activate.ps1', create_ps1_replace_line(paths))
     fix_exe_files(paths)
+    fix_python_scripts(paths)
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    main()

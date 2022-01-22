@@ -8,7 +8,7 @@
 
 ## Usage: 
 
-```venvfix <new_venv_python_path>```
+```venvfix <venv_python_path>```
 
 ## Example:
 
@@ -20,4 +20,4 @@ And then venv2 will work properly, you can activate it, use pip.exe and other ex
 
 ## Notice:
 
-The <new_venv_python_path> can be absolute or relative path of the python interpreter.
+The <venv_python_path> can be absolute or relative path of the python interpreter.
