@@ -193,10 +193,14 @@ def create_ps1_replace_line(paths: dict) -> list:
     return replace_lines
 
 
-if __name__ == '__main__':
+def main():
     python_path = parse_args(sys.argv[1:])
     paths = parse_path(python_path)
     fix_activate_script(paths, 'activate', create_bash_replace_line(paths))
     fix_activate_script(paths, 'activate.bat', create_bat_replace_line(paths))
     fix_activate_script(paths, 'Activate.ps1', create_ps1_replace_line(paths))
     fix_exe_files(paths)
+
+
+if __name__ == '__main__':
+    sys.exit(main())
