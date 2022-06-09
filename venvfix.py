@@ -1,24 +1,18 @@
-import os
 import sys
+import os
 import argparse
+import re
+from typing import Dict, List, Tuple
 
 
-def parse_args(args_list: list) -> str:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '<venv_python_path>',
-        help='absolute or relative path of the python interpreter in venv',
-    )
-    args_space = parser.parse_args(args_list)
-    input_path = vars(args_space)['<venv_python_path>']
-    python_path = os.path.abspath(input_path)
-    return python_path
-
-
-def is_python_exe(paths: dict) -> bool:
+def is_python_exe(paths: Dict[str, str]) -> bool:
     if not os.path.isfile(paths['python_path']):
         return False
-    if paths['python_name'][-4:] != '.exe' or paths['python_name'].find('python') == -1:
+    if (
+        paths['python_name'] == 'pythonw.exe'
+        or paths['python_name'][-4:] != '.exe'
+        or paths['python_name'].find('python') == -1
+    ):
         return False
     with open(paths['python_path'], 'rb') as exe_file:
         raw_content = exe_file.read()
@@ -30,7 +24,7 @@ def is_python_exe(paths: dict) -> bool:
     return True
 
 
-def parse_path(python_path: str) -> dict:
+def parse_path(python_path: str) -> Dict[str, str]:
     try:
         path_split = python_path.split('\\')
         venv_path = '\\'.join(path_split[:-2])
@@ -38,7 +32,7 @@ def parse_path(python_path: str) -> dict:
         venv_name = path_split[-3]
         python_name = path_split[-1]
     except IndexError:
-        exit(print('bad input path'))
+        sys.exit(print('Error: bad input path'))
 
     paths = {
         'python_path': python_path,
@@ -49,45 +43,72 @@ def parse_path(python_path: str) -> dict:
     }
 
     if not is_python_exe(paths):
-        exit(print('not a python interpreter'))
+        sys.exit(print('Error: not a python interpreter'))
 
     files_in_venv = os.listdir(venv_path)
     files_in_venv = [s.lower() for s in files_in_venv]
     if not 'pyvenv.cfg' in files_in_venv:
-        exit(print('not a venv'))
+        sys.exit(print('Error: not a venv'))
 
     return paths
 
 
-def match_line(search_lines: list, line: str) -> bool:
-    for search in search_lines:
-        if search not in line:
-            return False
-    return True
+def parse_args() -> Tuple[Dict[str, str], str]:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-p',
+        '--path',
+        required=True,
+        help='absolute or relative path of the python interpreter executable in venv',
+    )
+    parser.add_argument(
+        '-n',
+        '--name',
+        default=None,
+        required=False,
+        help='old name of the venv, not required if venv name has no change',
+    )
+    args_space = parser.parse_args()
+    input_path = args_space.path
+    python_path = os.path.abspath(input_path)
+    paths = parse_path(python_path)
+    old_name = args_space.name
+    if old_name is None:
+        old_name = paths['venv_name']
+    return paths, old_name
 
 
-def fix_activate_script(paths: dict, script_name: str, replace_line: list) -> None:
-    script_path = paths['python_folder_path'] + '\\' + script_name
-    modified_script_path = script_path + '.tmp'
-    if not os.path.exists(script_path):
-        return
+def fix_activate_script(
+    paths: Dict[str, str],
+    script_names: List[str],
+    old_name: str,
+) -> None:
+    for script_name in script_names:
+        script_path = paths['python_folder_path'] + '\\' + script_name
+        modified_script_path = script_path + '.tmp'
+        if not os.path.exists(script_path):
+            return
 
-    with open(script_path, 'r') as script_file, open(
-        modified_script_path, 'w'
-    ) as modified_script_file:
-        for line in script_file:
-            for search_lines, new_line in replace_line:
-                if match_line(search_lines, line):
-                    line = new_line
-                    break
-            modified_script_file.write(line)
+        with open(script_path, 'r') as script_file, open(
+            modified_script_path, 'w'
+        ) as modified_script_file:
+            for line in script_file:
+                line1 = re.sub(
+                    r'.:\\.*\\' + old_name,
+                    paths['venv_path'].replace('\\', r'\\'),
+                    line,
+                )
+                line2 = re.sub(
+                    f'\\({old_name}\\)', '({})'.format(paths['venv_name']), line1
+                )
+                modified_script_file.write(line2)
 
-    os.remove(script_path)
-    os.rename(modified_script_path, script_path)
-    print(script_path + ' fixed')
+        os.remove(script_path)
+        os.rename(modified_script_path, script_path)
+        print(script_path + ' fixed')
 
 
-def fix_exe_files(paths: list) -> None:
+def fix_exe_files(paths: Dict[str, str]) -> None:
     file_names = os.listdir(paths['python_folder_path'])
     for file_name in file_names:
         if file_name.split('.')[-1] == 'exe':
@@ -118,7 +139,7 @@ def fix_exe_files(paths: list) -> None:
             print(file_path + ' fixed')
 
 
-def fix_python_scripts(paths: dict) -> None:
+def fix_python_scripts(paths: Dict[str, str]) -> None:
     file_names = os.listdir(paths['python_folder_path'])
     for file_name in file_names:
         if file_name.split('.')[-1] == 'py':
@@ -137,96 +158,12 @@ def fix_python_scripts(paths: dict) -> None:
             print(file_path + ' fixed')
 
 
-def create_bash_replace_line(paths: dict) -> list:
-    replace_lines = []  # [([old1,old2,...],new),...]
-    # 3.6 3.8
-    replace_lines.append(
-        (['VIRTUAL_ENV="'], 'VIRTUAL_ENV="' + paths['venv_path'] + '"\n')
-    )
-    # 3.6 3.8
-    replace_lines.append(
-        (
-            [') " != x ] ; then'],
-            '    if [ "x(' + paths['venv_name'] + ') " != x ] ; then\n',
-        )
-    )
-    # 3.6 3.8 3.9
-    replace_lines.append(
-        ([') ${PS1:-}"'], '    PS1="(' + paths['venv_name'] + ') ${PS1:-}"\n')
-    )
-    # 3.9
-    replace_lines.append(
-        (
-            ['VIRTUAL_ENV=$(cygpath'],
-            'VIRTUAL_ENV=$(cygpath "' + paths['venv_path'] + '")\n',
-        )
-    )
-    return replace_lines
-
-
-def create_bat_replace_line(paths: dict) -> list:
-    replace_lines = []
-    # 3.6
-    replace_lines.append(
-        (
-            ['set "VIRTUAL_ENV='],
-            'set "VIRTUAL_ENV=' + paths['venv_path'] + '"\n',
-        )
-    )
-    # 3.6
-    replace_lines.append(
-        (
-            ['set "PROMPT=('],
-            'set "PROMPT=(' + paths['venv_name'] + ') %PROMPT%"\n',
-        )
-    )
-    # 3.8
-    replace_lines.append(
-        (
-            ['set VIRTUAL_ENV='],
-            'set VIRTUAL_ENV=' + paths['venv_path'] + '\n',
-        )
-    )
-    # 3.8
-    replace_lines.append(
-        (
-            ['set PROMPT=('],
-            'set PROMPT=(' + paths['venv_name'] + ') %PROMPT%\n',
-        )
-    )
-    return replace_lines
-
-
-def create_ps1_replace_line(paths: dict) -> list:
-    replace_lines = []
-    # 3.6
-    replace_lines.append(
-        (
-            ['$env:VIRTUAL_ENV="'],
-            '$env:VIRTUAL_ENV="' + paths['venv_path'] + '"\n',
-        )
-    )
-    # 3.6
-    replace_lines.append(
-        (
-            ['Write-Host -NoNewline -ForegroundColor Green \'('],
-            'Write-Host -NoNewline -ForegroundColor Green \'('
-            + paths['venv_name']
-            + ') \'\n',
-        )
-    )
-    return replace_lines
-
-
 def main():
-    python_path = parse_args(sys.argv[1:])
-    paths = parse_path(python_path)
-    fix_activate_script(paths, 'activate', create_bash_replace_line(paths))
-    fix_activate_script(paths, 'activate.bat', create_bat_replace_line(paths))
-    fix_activate_script(paths, 'Activate.ps1', create_ps1_replace_line(paths))
+    paths, old_name = parse_args()
+    fix_activate_script(paths, ['activate', 'activate.bat', 'Activate.ps1'], old_name)
     fix_exe_files(paths)
     fix_python_scripts(paths)
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
