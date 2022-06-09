@@ -2,7 +2,7 @@ import sys
 import os
 import argparse
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Union
 
 
 def is_python_exe(paths: Dict[str, str]) -> bool:
@@ -53,29 +53,31 @@ def parse_path(python_path: str) -> Dict[str, str]:
     return paths
 
 
-def parse_args() -> Tuple[Dict[str, str], str]:
+def parse_args() -> Tuple[Dict[str, str], Union[str, None]]:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '-p',
-        '--path',
-        required=True,
+        'PYTHON_PATH',
         help='absolute or relative path of the python interpreter executable in venv',
     )
     parser.add_argument(
         '-n',
         '--name',
         default=None,
-        required=False,
-        help='old name of the venv, not required if venv name has no change',
+        help='old name of the venv, provide when auto detection can not work properly',
     )
     args_space = parser.parse_args()
-    input_path = args_space.path
-    python_path = os.path.abspath(input_path)
+    python_path = os.path.abspath(args_space.PYTHON_PATH)
     paths = parse_path(python_path)
-    old_name = args_space.name
-    if old_name is None:
-        old_name = paths['venv_name']
-    return paths, old_name
+    return paths, args_space.name
+
+
+def detect_old_name(paths: Dict[str, str]) -> str:
+    script_path = paths['python_folder_path'] + '\\activate'
+    with open(script_path, 'r') as script_file:
+        for line in script_file:
+            if (mat := re.search(r'VIRTUAL_ENV.*[a-zA-Z]:.*\\(.*)"', line)) is not None:
+                return mat.group(1)
+    sys.exit(print('Fatal error: can not detect old venv name'))
 
 
 def fix_activate_script(
@@ -87,14 +89,14 @@ def fix_activate_script(
         script_path = paths['python_folder_path'] + '\\' + script_name
         modified_script_path = script_path + '.tmp'
         if not os.path.exists(script_path):
-            return
+            continue
 
         with open(script_path, 'r') as script_file, open(
             modified_script_path, 'w'
         ) as modified_script_file:
             for line in script_file:
                 line1 = re.sub(
-                    r'.:\\.*\\' + old_name,
+                    r'[a-zA-Z]:.*\\' + old_name,
                     paths['venv_path'].replace('\\', r'\\'),
                     line,
                 )
@@ -160,6 +162,8 @@ def fix_python_scripts(paths: Dict[str, str]) -> None:
 
 def main():
     paths, old_name = parse_args()
+    if old_name is None:
+        old_name = detect_old_name(paths)
     fix_activate_script(paths, ['activate', 'activate.bat', 'Activate.ps1'], old_name)
     fix_exe_files(paths)
     fix_python_scripts(paths)
