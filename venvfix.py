@@ -1,5 +1,5 @@
 import sys, os, argparse, re
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
 __version__ = '0.3.2'
 
@@ -59,7 +59,7 @@ def detect_old_name(paths: Dict[str, str]) -> str:
         )
 
 
-def parse_args() -> Tuple[Dict[str, str], Union[str, None]]:
+def parse_args() -> Tuple[Dict[str, str], str]:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         'PYTHON_PATH',
