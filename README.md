@@ -8,18 +8,16 @@
 
 ## Usage: 
 
-```venvfix [-h] VENV_PYTHON_PATH [-n OLD_VENV_NAME]```
+```venvfix VENV_PYTHON_PATH [-n OLD_VENV_NAME]```
 
 ## Example:
 
-After you move or rename virtual environment "D:\oldpath\venv1" to "E:\newpath\venv2", the activate scripts and executable files in venv2\scripts (or venv2\bin) could not work.
+After you move or rename a virtual environment (v-env) leading to its path be changed, the activate scripts and executable files in venv2\scripts (or venv2\bin) could no longer work.
 
-Then you can execute "```venvfix E:\newpath\venv2\scripts\python.exe```".
-
-And then venv2 will work properly, you can activate it, use pip.exe and other executable files as usual.
+For example, if you move a v-env from "D:\oldpath\venv1" to "E:\newpath\venv2", then you can execute "```venvfix E:\newpath\venv2\scripts\python.exe```", and then venv2 will work properly, you can activate it, use pip.exe and other executable files as usual.
 
 ## Notice:
 
-VENV_PYTHON_PATH can be absolute or relative path of the python interpreter executable.
+VENV_PYTHON_PATH can be absolute or relative path of the python interpreter executable in v-env.
 
-OLD_VENV_NAME is not required because venvfix can automatically dectect it, but you can provide the old name manually if auto detection could not work properly.
+OLD_VENV_NAME is not required because venvfix can dectect it automatically, but you can provide the old name manually if auto detection could not work properly.
