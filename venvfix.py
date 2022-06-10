@@ -1,8 +1,7 @@
-import sys
-import os
-import argparse
-import re
+import sys, os, argparse, re
 from typing import Dict, List, Tuple, Union
+
+__version__ = '0.3.2'
 
 
 def is_python_exe(paths: Dict[str, str]) -> bool:
@@ -15,42 +14,49 @@ def is_python_exe(paths: Dict[str, str]) -> bool:
     ):
         return False
     with open(paths['python_path'], 'rb') as exe_file:
-        raw_content = exe_file.read()
-        offset_python = raw_content.find(
-            b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
-        )
-        if offset_python != -1:
+        if (
+            exe_file.read().find(
+                b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
+            )  # only like pip.exe will have this, python.exe should not have.
+            != -1
+        ):
             return False
     return True
 
 
 def parse_path(python_path: str) -> Dict[str, str]:
+    paths = {'python_path': python_path}
     try:
         path_split = python_path.split('\\')
-        venv_path = '\\'.join(path_split[:-2])
-        python_folder_path = '\\'.join(path_split[:-1])
-        venv_name = path_split[-3]
-        python_name = path_split[-1]
+        paths['venv_path'] = '\\'.join(path_split[:-2])
+        paths['python_folder_path'] = '\\'.join(path_split[:-1])
+        paths['venv_name'] = path_split[-3]
+        paths['python_name'] = path_split[-1]
     except IndexError:
         sys.exit(print('Error: bad input path'))
-
-    paths = {
-        'python_path': python_path,
-        'venv_name': venv_name,
-        'venv_path': venv_path,
-        'python_name': python_name,
-        'python_folder_path': python_folder_path,
-    }
 
     if not is_python_exe(paths):
         sys.exit(print('Error: not a python interpreter'))
 
-    files_in_venv = os.listdir(venv_path)
-    files_in_venv = [s.lower() for s in files_in_venv]
-    if not 'pyvenv.cfg' in files_in_venv:
+    if not 'pyvenv.cfg' in [s.lower() for s in os.listdir(paths['venv_path'])]:
         sys.exit(print('Error: not a venv'))
 
     return paths
+
+
+def detect_old_name(paths: Dict[str, str]) -> str:
+    try:
+        with open(paths['python_folder_path'] + '\\activate', 'r') as script_file:
+            if (
+                mat := re.search(r'VIRTUAL_ENV.*[a-zA-Z]:.*\\(.*)"', script_file.read())
+            ) is not None:
+                return mat.group(1)
+            else:
+                sys.exit(print('Fatal error: can not detect old venv name'))
+    except FileNotFoundError:
+        sys.exit(
+            print('Error: can not detect old venv name, please specify it by -n option')
+        )
 
 
 def parse_args() -> Tuple[Dict[str, str], Union[str, None]]:
@@ -63,21 +69,14 @@ def parse_args() -> Tuple[Dict[str, str], Union[str, None]]:
         '-n',
         '--name',
         default=None,
+        metavar='OLD_NAME',
         help='old name of the venv, provide when auto detection can not work properly',
     )
-    args_space = parser.parse_args()
-    python_path = os.path.abspath(args_space.PYTHON_PATH)
-    paths = parse_path(python_path)
-    return paths, args_space.name
-
-
-def detect_old_name(paths: Dict[str, str]) -> str:
-    script_path = paths['python_folder_path'] + '\\activate'
-    with open(script_path, 'r') as script_file:
-        for line in script_file:
-            if (mat := re.search(r'VIRTUAL_ENV.*[a-zA-Z]:.*\\(.*)"', line)) is not None:
-                return mat.group(1)
-    sys.exit(print('Fatal error: can not detect old venv name'))
+    args = parser.parse_args()
+    paths = parse_path(os.path.abspath(args.PYTHON_PATH))
+    old_name = detect_old_name(paths) if args.name is None else args.name
+    print(f'old venv name is "{old_name}"')
+    return paths, old_name
 
 
 def fix_activate_script(
@@ -85,6 +84,7 @@ def fix_activate_script(
     script_names: List[str],
     old_name: str,
 ) -> None:
+    old_name = re.escape(old_name)
     for script_name in script_names:
         script_path = paths['python_folder_path'] + '\\' + script_name
         modified_script_path = script_path + '.tmp'
@@ -117,25 +117,25 @@ def fix_exe_files(paths: Dict[str, str]) -> None:
             file_path = paths['python_folder_path'] + '\\' + file_name
             modified_file_path = file_path + '.tmp'
             with open(file_path, 'rb') as exe_file:
-                raw_content = exe_file.read()
-                offset_python = raw_content.find(
+                raw_text = exe_file.read()
+                offset_python = raw_text.find(
                     b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
                 )
                 if offset_python == -1:
                     continue
                 start_offset = offset_python
-                while raw_content[start_offset : start_offset + 2] != b'#!':
+                while raw_text[start_offset : start_offset + 2] != b'#!':
                     start_offset -= 1
                 end_offset = offset_python + 4
 
                 replace_python_path = ('#!' + paths['python_path']).encode('ascii')
-                new_content = (
-                    raw_content[:start_offset]
+                new_text = (
+                    raw_text[:start_offset]
                     + replace_python_path
-                    + raw_content[end_offset:]
+                    + raw_text[end_offset:]
                 )
             with open(modified_file_path, 'wb') as modified_exe_file:
-                modified_exe_file.write(new_content)
+                modified_exe_file.write(new_text)
             os.remove(file_path)
             os.rename(modified_file_path, file_path)
             print(file_path + ' fixed')
@@ -162,8 +162,6 @@ def fix_python_scripts(paths: Dict[str, str]) -> None:
 
 def main():
     paths, old_name = parse_args()
-    if old_name is None:
-        old_name = detect_old_name(paths)
     fix_activate_script(paths, ['activate', 'activate.bat', 'Activate.ps1'], old_name)
     fix_exe_files(paths)
     fix_python_scripts(paths)

@@ -1,8 +1,9 @@
 from setuptools import setup
+from venvfix import __version__
 
 setup(
     name="venvfix",
-    version="0.3.1",
+    version=__version__,
     keywords=["venv", "fix"],
     description="A python script to fix venv environments",
     long_description="A python script to fix the python virtual environments (standard library venv) after moved or renamed without reinstalling through pip",

@@ -2,3 +2,5 @@ test
 dist
 *.egg-info
 .mypy_cache
+.vscode
+__pycache__
