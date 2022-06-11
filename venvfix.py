@@ -93,8 +93,8 @@ def fix_activate_script(
             rep_cnt = 0
             for line in script_file:
                 line1 = re.sub(
-                    r'[a-zA-Z]:.*\\' + old_name,
-                    paths['venv_path'].replace('\\', r'\\'),
+                    r'[a-zA-Z]:.*\\' + old_name + r'([\n"])',
+                    paths['venv_path'].replace('\\', r'\\') + r'\1',
                     line,
                 )
                 cnt1 = 1 if line1 != line else 0
