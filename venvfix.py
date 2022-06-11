@@ -1,7 +1,9 @@
 import sys, os, argparse, re
 from typing import Dict, List, Tuple
 
-__version__ = '0.3.2'
+__version__ = '0.3.3'
+
+non_python_exe_have = b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
 
 
 def is_python_exe(paths: Dict[str, str]) -> bool:
@@ -14,12 +16,7 @@ def is_python_exe(paths: Dict[str, str]) -> bool:
     ):
         return False
     with open(paths['python_path'], 'rb') as exe_file:
-        if (
-            exe_file.read().find(
-                b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
-            )  # only like pip.exe will have this, python.exe should not have.
-            != -1
-        ):
+        if exe_file.read().find(non_python_exe_have) != -1:
             return False
     return True
 
@@ -47,9 +44,8 @@ def parse_path(python_path: str) -> Dict[str, str]:
 def detect_old_name(paths: Dict[str, str]) -> str:
     try:
         with open(paths['python_folder_path'] + '\\activate', 'r') as script_file:
-            if (
-                mat := re.search(r'VIRTUAL_ENV.*[a-zA-Z]:.*\\(.*)"', script_file.read())
-            ) is not None:
+            mat = re.search(r'VIRTUAL_ENV.*[a-zA-Z]:.*\\(.*)"', script_file.read())
+            if mat is not None:
                 return mat.group(1)
             else:
                 sys.exit(print('Fatal error: can not detect old venv name'))
@@ -75,7 +71,6 @@ def parse_args() -> Tuple[Dict[str, str], str]:
     args = parser.parse_args()
     paths = parse_path(os.path.abspath(args.PYTHON_PATH))
     old_name = detect_old_name(paths) if args.name is None else args.name
-    print(f'old venv name is "{old_name}"')
     return paths, old_name
 
 
@@ -88,26 +83,35 @@ def fix_activate_script(
     for script_name in script_names:
         script_path = paths['python_folder_path'] + '\\' + script_name
         modified_script_path = script_path + '.tmp'
+
         if not os.path.exists(script_path):
             continue
 
         with open(script_path, 'r') as script_file, open(
             modified_script_path, 'w'
         ) as modified_script_file:
+            rep_cnt = 0
             for line in script_file:
                 line1 = re.sub(
                     r'[a-zA-Z]:.*\\' + old_name,
                     paths['venv_path'].replace('\\', r'\\'),
                     line,
                 )
+                cnt1 = 1 if line1 != line else 0
                 line2 = re.sub(
-                    f'\\({old_name}\\)', '({})'.format(paths['venv_name']), line1
+                    r'\(' + old_name + r'\)', '(' + paths["venv_name"] + ')', line1
                 )
+                cnt2 = 1 if line2 != line1 else 0
                 modified_script_file.write(line2)
+                rep_cnt += cnt1 + cnt2
 
         os.remove(script_path)
         os.rename(modified_script_path, script_path)
-        print(script_path + ' fixed')
+
+        if rep_cnt > 0:
+            print(script_path + ' modified')
+        else:
+            print(script_path + ' no change')
 
 
 def fix_exe_files(paths: Dict[str, str]) -> None:
@@ -118,16 +122,15 @@ def fix_exe_files(paths: Dict[str, str]) -> None:
             modified_file_path = file_path + '.tmp'
             with open(file_path, 'rb') as exe_file:
                 raw_text = exe_file.read()
-                offset_python = raw_text.find(
-                    b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
-                )
+                offset_python = raw_text.find(non_python_exe_have)
+
                 if offset_python == -1:
                     continue
+
                 start_offset = offset_python
                 while raw_text[start_offset : start_offset + 2] != b'#!':
                     start_offset -= 1
                 end_offset = offset_python + 4
-
                 replace_python_path = ('#!' + paths['python_path']).encode('ascii')
                 new_text = (
                     raw_text[:start_offset]
@@ -136,9 +139,14 @@ def fix_exe_files(paths: Dict[str, str]) -> None:
                 )
             with open(modified_file_path, 'wb') as modified_exe_file:
                 modified_exe_file.write(new_text)
+
             os.remove(file_path)
             os.rename(modified_file_path, file_path)
-            print(file_path + ' fixed')
+
+            if raw_text[start_offset:end_offset] != replace_python_path:
+                print(file_path + ' modified')
+            else:
+                print(file_path + ' no change')
 
 
 def fix_python_scripts(paths: Dict[str, str]) -> None:
@@ -149,15 +157,22 @@ def fix_python_scripts(paths: Dict[str, str]) -> None:
             modified_file_path = file_path + '.tmp'
             with open(file_path, 'r') as script_file:
                 first_line = script_file.readline()
+
                 if first_line[:2] != '#!':
                     continue
+
                 remains = script_file.read()
                 new_first_line = '#!' + paths['python_path'] + '\n'
             with open(modified_file_path, 'w') as modified_script_file:
                 modified_script_file.write(new_first_line + remains)
+
             os.remove(file_path)
             os.rename(modified_file_path, file_path)
-            print(file_path + ' fixed')
+
+            if first_line != new_first_line:
+                print(file_path + ' modified')
+            else:
+                print(file_path + ' no change')
 
 
 def main():
