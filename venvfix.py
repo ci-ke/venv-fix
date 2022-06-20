@@ -1,7 +1,7 @@
 import sys, os, argparse, re
 from typing import Dict, List, Tuple
 
-__version__ = '0.3.3'
+__version__ = '0.3.4'
 
 non_python_exe_have = b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
 
