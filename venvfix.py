@@ -97,13 +97,12 @@ def fix_activate_script(
                     paths['venv_path'].replace('\\', r'\\') + r'\1',
                     line,
                 )
-                cnt1 = 1 if line1 != line else 0
+                rep_cnt += 1 if line1 != line else 0
                 line2 = re.sub(
                     r'\(' + old_name + r'\)', '(' + paths["venv_name"] + ')', line1
                 )
-                cnt2 = 1 if line2 != line1 else 0
+                rep_cnt += 1 if line2 != line1 else 0
                 modified_script_file.write(line2)
-                rep_cnt += cnt1 + cnt2
 
         os.remove(script_path)
         os.rename(modified_script_path, script_path)
@@ -175,7 +174,7 @@ def fix_python_scripts(paths: Dict[str, str]) -> None:
                 print(file_path + ' no change')
 
 
-def main():
+def main() -> None:
     paths, old_name = parse_args()
     fix_activate_script(paths, ['activate', 'activate.bat', 'Activate.ps1'], old_name)
     fix_exe_files(paths)
@@ -183,4 +182,4 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    main()
