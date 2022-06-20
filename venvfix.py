@@ -1,7 +1,7 @@
 import sys, os, argparse, re
 from typing import Dict, List, Tuple
 
-__version__ = '0.3.4'
+__version__ = '0.3.5'
 
 non_python_exe_have = b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
 
@@ -44,7 +44,7 @@ def parse_path(python_path: str) -> Dict[str, str]:
 def detect_old_name(paths: Dict[str, str]) -> str:
     try:
         with open(paths['python_folder_path'] + '\\activate', 'r') as script_file:
-            mat = re.search(r'VIRTUAL_ENV.*[a-zA-Z]:.*\\(.*)"', script_file.read())
+            mat = re.search(r'VIRTUAL_ENV.*"[a-zA-Z]:.*\\(.*)"', script_file.read())
             if mat is not None:
                 return mat.group(1)
             else:
@@ -90,24 +90,26 @@ def fix_activate_script(
         with open(script_path, 'r') as script_file, open(
             modified_script_path, 'w'
         ) as modified_script_file:
-            rep_cnt = 0
-            for line in script_file:
-                line1 = re.sub(
-                    r'[a-zA-Z]:.*\\' + old_name + r'([\n"])',
-                    paths['venv_path'].replace('\\', r'\\') + r'\1',
-                    line,
-                )
-                rep_cnt += 1 if line1 != line else 0
-                line2 = re.sub(
-                    r'\(' + old_name + r'\)', '(' + paths["venv_name"] + ')', line1
-                )
-                rep_cnt += 1 if line2 != line1 else 0
-                modified_script_file.write(line2)
+            raw_text = script_file.read()
+            text1 = re.sub(
+                r'[a-zA-Z]:\\.*\\' + old_name + r'([\n"])',
+                paths['venv_path'].replace('\\', r'\\') + r'\1',
+                raw_text,
+            )
+            text2 = re.sub(
+                r'[a-zA-Z]:\\' + old_name + r'([\n"])',
+                paths['venv_path'].replace('\\', r'\\') + r'\1',
+                text1,
+            )
+            new_text = re.sub(
+                r'\(' + old_name + r'\)', '(' + paths["venv_name"] + ')', text2
+            )
+            modified_script_file.write(new_text)
 
         os.remove(script_path)
         os.rename(modified_script_path, script_path)
 
-        if rep_cnt > 0:
+        if raw_text != new_text:
             print(script_path + ' modified')
         else:
             print(script_path + ' no change')
