@@ -1,7 +1,7 @@
 import sys, os, argparse, re
 from typing import Dict, List, Tuple
 
-__version__ = '0.3.5'
+__version__ = '0.3.6'
 
 non_python_exe_have = b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
 
@@ -44,7 +44,9 @@ def parse_path(python_path: str) -> Dict[str, str]:
 def detect_old_name(paths: Dict[str, str]) -> str:
     try:
         with open(paths['python_folder_path'] + '\\activate', 'r') as script_file:
-            mat = re.search(r'VIRTUAL_ENV.*"[a-zA-Z]:.*\\(.*)"', script_file.read())
+            mat = re.search(
+                r'VIRTUAL_ENV.*["\'][a-zA-Z]:.*\\(.*)["\']', script_file.read()
+            )
             if mat is not None:
                 return mat.group(1)
             else:
@@ -92,12 +94,12 @@ def fix_activate_script(
         ) as modified_script_file:
             raw_text = script_file.read()
             text1 = re.sub(
-                r'[a-zA-Z]:\\.*\\' + old_name + r'([\n"])',
+                r'[a-zA-Z]:\\.*\\' + old_name + '([\\n"\'])',
                 paths['venv_path'].replace('\\', r'\\') + r'\1',
                 raw_text,
             )
             text2 = re.sub(
-                r'[a-zA-Z]:\\' + old_name + r'([\n"])',
+                r'[a-zA-Z]:\\' + old_name + '([\\n"\'])',  # 如果直接就在盘符根目录
                 paths['venv_path'].replace('\\', r'\\') + r'\1',
                 text1,
             )

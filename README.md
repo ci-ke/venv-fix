@@ -21,3 +21,7 @@ After you move and rename a v-env from "D:\oldpath\venv1" to "E:\newpath\venv2",
 VENV_PYTHON_PATH can be absolute or relative path of the python interpreter executable in v-env.
 
 OLD_VENV_NAME is not required because venvfix can dectect it automatically, but you can specify it if auto detection could not work properly.
+
+---
+
+Tested on python 3.10, 3.12
