@@ -1,9 +1,9 @@
 import sys, os, argparse, re
 from typing import Dict, List, Tuple
 
-__version__ = '0.3.6'
+__version__ = '0.3.7'
 
-non_python_exe_have = b'.exe\x0a\x0d\x0aPK\x03\x04\x14\x00\x00\x00\x00\x00'
+non_python_exe_have = b'PK\x03\x04\x14\x00\x00\x00\x00\x00'
 
 
 def is_python_exe(paths: Dict[str, str]) -> bool:
@@ -131,9 +131,12 @@ def fix_exe_files(paths: Dict[str, str]) -> None:
                     continue
 
                 start_offset = offset_python
+                end_offset = offset_python
                 while raw_text[start_offset : start_offset + 2] != b'#!':
                     start_offset -= 1
-                end_offset = offset_python + 4
+                while raw_text[end_offset : end_offset + 4] != b'.exe':
+                    end_offset -= 1
+                end_offset += 4
                 replace_python_path = ('#!' + paths['python_path']).encode('ascii')
                 new_text = (
                     raw_text[:start_offset]
